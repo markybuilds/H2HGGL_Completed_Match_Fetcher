@@ -41,7 +41,90 @@ The main script `fetch_completed_matches.py` allows you to retrieve completed ma
    pip install -r requirements.txt
    ```
 
-## Usage
+## Usage Examples
+
+### Fetching Completed Matches
+
+```bash
+# Fetch matches for a specific date range
+python fetch_completed_matches.py --from "2024-12-01" --to "2024-12-31"
+
+# Fetch matches for a specific tournament
+python fetch_completed_matches.py --tournament-id 123 --from "2024-12-01" --to "2024-12-31"
+
+# Use custom output file
+python fetch_completed_matches.py --from "2024-12-01" --to "2024-12-31" --output "my_matches.json"
+
+# Enable verbose output
+python fetch_completed_matches.py --from "2024-12-01" --to "2024-12-31" --verbose
+```
+
+### Fetching Match Statistics
+
+```bash
+# Fetch statistics for a single match
+python fetch_match_stats.py --match-id "233333" --verbose
+
+# Fetch statistics for all matches in a completed matches file
+python fetch_match_stats.py --matches-file "h2hggl_data/completed_matches.json" --output "all_stats.json"
+
+# Demo: Fetch statistics for first 5 matches (for testing)
+python demo_match_stats.py --count 5 --verbose
+
+# Demo: Fetch statistics for first 10 matches with custom output
+python demo_match_stats.py --count 10 --output "sample_stats.json"
+```
+
+## Match Statistics Data Structure
+
+The match statistics API provides comprehensive data for each match, organized by periods:
+
+### Available Periods
+- `endMatch` - Final game statistics
+- `quarter1` - First quarter statistics
+- `quarter2` - Second quarter statistics  
+- `quarter3` - Third quarter statistics
+- `quarter4` - Fourth quarter statistics
+
+### Available Statistics Categories
+- **Scoring**: Points, Field Goals (made/attempted/percentage), Free Throws, 3-Pointers
+- **Rebounds**: Offensive Rebounds, Defensive Rebounds, Total Rebounds
+- **Playmaking**: Assists, Turnovers
+- **Defense**: Steals, Blocks, Team Fouls
+- **Advanced**: Points in the Paint, Second Chance Points, Biggest Lead, Time of Possession
+- **Game Flow**: Timeouts Remaining, Dunks
+
+### Example Output Structure
+```json
+{
+  "metadata": {
+    "total_matches": 3,
+    "fetched_at": "2025-06-12T11:10:01.450490",
+    "api_endpoint": "https://api-sis-stats.hudstats.com/v1/match/[match_id]/stats"
+  },
+  "matches_statistics": {
+    "233333": {
+      "match_info": {
+        "matchId": "233333",
+        "homeTeamName": "Los Angeles Lakers",
+        "awayTeamName": "Boston Celtics",
+        "homeScore": 48,
+        "awayScore": 71
+      },
+      "statistics": {
+        "endMatch": {
+          "homePoints": 48,
+          "awayPoints": 71,
+          "homeFieldGoalsPercent": 37,
+          "awayFieldGoalsPercent": 63,
+          "homeAssists": 7,
+          "awayAssists": 13
+        }
+      }
+    }
+  }
+}
+```
 
 ### Basic Usage
 
@@ -181,13 +264,16 @@ The script handles various error conditions:
 ```
 h2hggl_research/
 ├── .venv/                          # Python virtual environment
-├── h2hggl_data/                    # Output directory for match data
+├── h2hggl_data/                    # Output directory for match data and statistics
 ├── fetch_completed_matches.py      # Main script for fetching matches
+├── fetch_match_stats.py           # Script to fetch detailed match statistics
+├── demo_match_stats.py            # Demo script for testing match statistics functionality
 ├── fetch_auth_token.py            # Authentication token fetcher (Selenium)
 ├── example_usage.py               # Example usage demonstrations
 ├── requirements.txt               # Python dependencies
 ├── H2H_GG_LEAGUE_API.md          # API documentation
 ├── token_error_reference.md       # Token error troubleshooting guide
+├── match_stats_information.txt     # API documentation and examples for match statistics
 └── README.md                      # This file
 ```
 
