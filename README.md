@@ -12,7 +12,8 @@ The main script `fetch_completed_matches.py` allows you to retrieve completed ma
 - Support for different tournament IDs
 - Automatic pagination handling
 - Configurable output file location
-- Authentication support (if required by API)
+- **Automatic authentication token refresh** using browser automation
+- Authentication support with fallback token fetching
 - Comprehensive error handling
 - Verbose logging option
 
@@ -20,7 +21,11 @@ The main script `fetch_completed_matches.py` allows you to retrieve completed ma
 
 1. **Clone or download this repository**
 
-2. **Set up a Python virtual environment** (recommended):
+2. **Install Chrome/Chromium browser** (required for automatic token refresh):
+   - The script uses Selenium WebDriver to automatically fetch authentication tokens
+   - Ensure Chrome or Chromium is installed and accessible in your system PATH
+
+3. **Set up a Python virtual environment** (recommended):
    ```bash
    python -m venv .venv
    
@@ -31,7 +36,7 @@ The main script `fetch_completed_matches.py` allows you to retrieve completed ma
    source .venv/bin/activate
    ```
 
-3. **Install required dependencies**:
+4. **Install required dependencies**:
    ```bash
    pip install -r requirements.txt
    ```
@@ -139,18 +144,27 @@ GET https://api-sis-stats.hudstats.com/v1/schedule
 
 ### Authentication
 
-The script includes a default guest authentication token that allows access to the API. You can also provide your own token if needed:
+The script features **automatic authentication token refresh** using browser automation:
 
+- **Default behavior**: Uses a test token that intentionally triggers authentication errors
+- **Automatic refresh**: When authentication fails, the script automatically:
+  1. Launches a headless Chrome browser using Selenium
+  2. Navigates to the H2H GG League website
+  3. Extracts a fresh authentication token from the browser's local storage
+  4. Retries the API request with the new token
+  5. Continues fetching data seamlessly
+
+**Manual token usage** (optional):
 ```bash
 python fetch_completed_matches.py --auth-token "your_token_here"
 ```
 
-The default token is included for convenience and testing purposes.
+**Token refresh script** (can be used independently):
+```bash
+python fetch_auth_token.py --headless --output my_token.json
+```
 
-If you receive an "Unauthenticated" error, you'll need to:
-
-1. Obtain an API token from the H2H GG League platform
-2. Use the `--auth-token` parameter when running the script
+The automatic token refresh eliminates the need for manual token management and ensures uninterrupted data collection.
 
 ## Error Handling
 
@@ -169,9 +183,11 @@ h2hggl_research/
 ├── .venv/                          # Python virtual environment
 ├── h2hggl_data/                    # Output directory for match data
 ├── fetch_completed_matches.py      # Main script for fetching matches
+├── fetch_auth_token.py            # Authentication token fetcher (Selenium)
 ├── example_usage.py               # Example usage demonstrations
 ├── requirements.txt               # Python dependencies
 ├── H2H_GG_LEAGUE_API.md          # API documentation
+├── token_error_reference.md       # Token error troubleshooting guide
 └── README.md                      # This file
 ```
 

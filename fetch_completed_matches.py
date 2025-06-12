@@ -18,6 +18,7 @@ Requires:
 import argparse
 import json
 import os
+import subprocess
 import sys
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
@@ -48,6 +49,54 @@ class H2HMatchFetcher:
         """Set authentication token if required."""
         self.session.headers.update({'Authorization': f'Bearer {token}'})
     
+    def refresh_auth_token(self, verbose: bool = False) -> Optional[str]:
+        """Fetch a new authentication token using the token fetcher script."""
+        try:
+            if verbose:
+                print("Attempting to fetch new authentication token...")
+            
+            # Run the token fetcher script
+            result = subprocess.run(
+                [sys.executable, 'fetch_auth_token.py', '--headless'],
+                capture_output=True,
+                text=True,
+                timeout=60
+            )
+            
+            if result.returncode == 0:
+                # Load the token from the output file
+                try:
+                    with open('auth_token.json', 'r', encoding='utf-8') as f:
+                        token_data = json.load(f)
+                    
+                    new_token = token_data.get('token')
+                    if new_token:
+                        if verbose:
+                            print("Successfully fetched new token")
+                        return new_token
+                    else:
+                        if verbose:
+                            print("Token file exists but no token found")
+                        return None
+                        
+                except (FileNotFoundError, json.JSONDecodeError) as e:
+                    if verbose:
+                        print(f"Error reading token file: {e}")
+                    return None
+            else:
+                if verbose:
+                    print(f"Token fetcher script failed: {result.stderr}")
+                return None
+                
+        except subprocess.TimeoutExpired:
+            if verbose:
+                print("Token fetcher script timed out")
+            return None
+        except Exception as e:
+            if verbose:
+                print(f"Error running token fetcher: {e}")
+            return None
+    
     def format_datetime(self, dt_str: str) -> str:
         """Format datetime string for API."""
         # Parse the datetime string and format it properly
@@ -64,7 +113,9 @@ class H2HMatchFetcher:
                           to_date: str, 
                           tournament_id: int = 1,
                           page: int = 1,
-                          page_size: int = 100) -> Dict:
+                          page_size: int = 100,
+                          verbose: bool = False,
+                          retry_on_auth_fail: bool = True) -> Dict:
         """Fetch a single page of completed matches."""
         
         # Format dates for URL encoding
@@ -84,14 +135,48 @@ class H2HMatchFetcher:
         }
         
         try:
-            print(f"Fetching page {page} from {from_date} to {to_date}...")
+            if verbose:
+                print(f"Fetching page {page} from {from_date} to {to_date}...")
+            else:
+                print(f"Fetching page {page} from {from_date} to {to_date}...")
+            
             response = self.session.get(url, params=params, timeout=30)
             
             # Check for authentication errors
             if response.status_code == 401:
-                print("Error: Authentication required. The API returned 'Unauthenticated'.")
-                print("Please check if you need to provide an API key or authentication token.")
-                return None
+                error_text = response.text.lower()
+                auth_error_detected = (
+                    'unauthenticated' in error_text or 
+                    'authentication' in error_text or
+                    'api key' in error_text or
+                    'authentication token' in error_text
+                )
+                
+                if auth_error_detected and retry_on_auth_fail:
+                    print("Authentication failed. Attempting to fetch new token...")
+                    
+                    # Try to get a new token
+                    new_token = self.refresh_auth_token(verbose=verbose)
+                    
+                    if new_token:
+                        # Update the session with the new token
+                        self.set_auth_token(new_token)
+                        print("Retrying request with new token...")
+                        
+                        # Retry the request with the new token (no retry to avoid infinite loop)
+                        return self.fetch_matches_page(
+                            from_date, to_date, tournament_id, page, page_size, 
+                            verbose, retry_on_auth_fail=False
+                        )
+                    else:
+                        print("Failed to obtain new authentication token.")
+                        print("Error: Authentication required. The API returned 'Unauthenticated'.")
+                        print("Please check if you need to provide an API key or authentication token.")
+                        return None
+                else:
+                    print("Error: Authentication required. The API returned 'Unauthenticated'.")
+                    print("Please check if you need to provide an API key or authentication token.")
+                    return None
             
             response.raise_for_status()
             return response.json()
@@ -106,14 +191,15 @@ class H2HMatchFetcher:
     def fetch_all_matches(self, 
                          from_date: str, 
                          to_date: str, 
-                         tournament_id: int = 1) -> List[Dict]:
+                         tournament_id: int = 1,
+                         verbose: bool = False) -> List[Dict]:
         """Fetch all completed matches within the date range."""
         
         all_matches = []
         page = 1
         
         while True:
-            data = self.fetch_matches_page(from_date, to_date, tournament_id, page)
+            data = self.fetch_matches_page(from_date, to_date, tournament_id, page, verbose=verbose)
             
             if not data or 'data' not in data:
                 break
@@ -211,8 +297,8 @@ Examples:
     # Authentication
     parser.add_argument(
         '--auth-token',
-        default='eyJhbGciOiJIUzI1NiJ9.eyJ1c2VyLWlkIjo5LCJuYW1lIjoiZ3Vlc3QiLCJyb2xlIjoidmlld2VyIiwidGVhbS1pZCI6bnVsbCwiZXhwIjoxNzQ5ODE5NzA1fQ.-lX8uLALll7VhUixYZUgERkG-1RZzCdW6leuNXNGYS0',
-        help='API authentication token (default: guest token provided)'
+        default='test',
+        help='API authentication token (default: test token to trigger auth refresh)'
     )
     
     # Verbose output
@@ -248,7 +334,8 @@ def main():
         matches = fetcher.fetch_all_matches(
             from_date=args.from_date,
             to_date=args.to_date,
-            tournament_id=args.tournament_id
+            tournament_id=args.tournament_id,
+            verbose=args.verbose
         )
         
         if not matches:
