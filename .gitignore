@@ -165,8 +165,8 @@ cython_debug/
 
 # Project-specific
 # Data files
-h2hggl_data/
-*.json
+#h2hggl_data/
+#*.json
 *.csv
 *.xlsx
 *.xls
